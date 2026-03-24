@@ -1,6 +1,8 @@
 # 🌐 PaperWeb v0.1
 
-![Startup Screen](photo1.jpg) !https://www.merriam-webster.com/dictionary/input(photo2.jpg) ![Web Page View](photo3.jpg)
+![Startup Screen](photo1.jpg)
+!https://www.merriam-webster.com/dictionary/input(photo2.jpg)
+![Web Page View](photo3.jpg)
 
 **PaperWeb** is a fast, lightweight, and open-source text-based web browser designed specifically for the **M5Stack Cardputer**. Experience the web in its purest form—no ads, no distractions, just information.
 
