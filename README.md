@@ -1,16 +1,21 @@
-# 🌐 PaperWeb v0.2
+# 🌐 PaperWeb v0.3
 
 **PaperWeb** is a fast, lightweight, and open-source text-based web browser designed specifically for the **M5Stack Cardputer**. Experience the web in its purest form—no ads, no distractions, just information.
 
 ---
 
-## Key Features
-- **Smart Search:** No need for full URLs! Type your query, and PaperWeb will automatically search it on **Google**.
-- **Pixel-Perfect Scrolling:** New smooth 3px scrolling system for a more natural reading experience.
-- **Modern Web Support:** Fully supports HTTPS/SSL connections.
-- **Enhanced UI:** Improved status bar with Battery %, WiFi Signal (RSSI), and RAM monitoring.
-- **Optimized Buffer:** Now handles up to 8000 symbols per page for longer articles.
-- **WiFi Manager:** Built-in tool to save and switch between 3 different networks.
+Key Features (v0.3)
+The PaperEngine™: A brand-new custom parsing engine that intelligently filters out garbage. No more seeing <script> or CSS code on your screen!
+
+True Streaming Technology: Pages are processed byte-by-byte instead of loading the whole site into RAM. This makes the browser incredibly stable.
+
+Memory Guard: Built-in "Safety Valve" that stops loading if the Cardputer's RAM (Heap) drops too low, preventing crashes.
+
+HTML Entity Support: Correctly renders symbols like &nbsp;, &quot;, and &amp; for a cleaner look.
+
+Smart Search: Type a query, and PaperWeb automatically takes you to Google.
+
+Deep Buffer: Now handles up to 12,000 characters per page—that's a whole long-read article!
 
 ## ⌨️ Controls & Shortcuts
 | Key | Action |
@@ -23,7 +28,7 @@
 
 ## 🛠️ Installation
 1. Go to the [Releases](https://github.com/Artem76228/PaperWeb/releases) section.
-2. Download the `PaperWeb_v0.2.bin` file.
+2. Download the `PaperWeb_v0.3.bin` file.
 3. Flash it to your M5Stack Cardputer using **M5Burner** or **ESP32 Download Tool**.
 
 ---
