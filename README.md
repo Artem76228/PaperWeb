@@ -8,7 +8,7 @@
 
 | Before (v0.3) | After (v0.4) |
 |:-------------:|:------------:|
-| ![](before-fotor-202603269139.png) | ![](after-fotor-202603269215.png) |
+| ![](before-202603269139.png) | ![](after-202603269215.png) |
 
 **Heavy sites like Wikipedia now load perfectly — up to 126KB of clean text!**
 
