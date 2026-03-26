@@ -18,7 +18,7 @@
 
 ### v0.4 Highlights
 - **Real Progress Bar** — Visual download feedback with percentage and KB counter
-- **Cyrillic & UTF-8 Support** — Full HTML entity decoding (including numeric entities like `&#1076;` → `д`)
+- **Improved Language Support** — HTML entity decoding (including numeric entities like `&#1076;` → `д`). Raw UTF-8 text has partial support — full Unicode is planned for v0.5
 - **Timeout Protection** — No more hanging on slow sites (15-second timeout)
 - **Better HTML Structure** — Proper handling of `h1`, `h2`, `h3`, `li` tags for cleaner formatting
 - **Scroll Percentage** — Know exactly where you are in the article
@@ -28,7 +28,7 @@
 - **PaperEngine™** — Custom parsing engine that intelligently filters out garbage. No more seeing `<script>` or CSS code on your screen!
 - **True Streaming Technology** — Pages are processed byte-by-byte instead of loading the whole site into RAM. This makes the browser incredibly stable.
 - **Memory Guard** — Built-in "Safety Valve" that stops loading if the Cardputer's RAM drops too low, preventing crashes.
-- **HTML Entity Support** — Correctly renders symbols like `&nbsp;`, `&quot;`, `&amp;`, and numeric entities for a clean look.
+- **HTML Entity Support** — Correctly renders symbols like `&nbsp;`, `&quot;`, `&amp;`, and numeric entities for a cleaner look.
 - **Smart Search** — Type a query, and PaperWeb automatically takes you to Google.
 - **Deep Buffer** — Handles up to 12,000 characters per page—that's a whole long-read article!
 
@@ -59,7 +59,7 @@
 ### v0.4 (2026-03-26)
 - **Added** real-time download progress with visual bar and percentage
 - **Added** timeout protection (15s) — no more hanging on slow sites
-- **Added** Cyrillic/UTF-8 support via numeric HTML entity decoding
+- **Added** numeric HTML entity decoding (improves Cyrillic and special characters)
 - **Added** scroll position indicator in percent
 - **Added** better HTML structure support (h1, h2, h3, li tags)
 - **Improved** memory management (15KB threshold for stability)
