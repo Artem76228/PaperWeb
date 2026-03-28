@@ -10,9 +10,8 @@
 - **Streaming Renderer** — Pages are processed byte-by-byte and displayed line-by-line. No more waiting for the whole page to load!
 - **No Framebuffer** — Uses only ~100KB of RAM for display buffer. The browser never crashes on large pages.
 - **Real-Time Loading** — Text appears instantly as it's downloaded, line by line.
-- **Cyrillic Support** — Full UTF-8 to CP1251 conversion. Russian Wikipedia displays perfectly.
 - **Progress Bar** — Visual download feedback with percentage and KB counter.
-- **Timeout Protection** — No hanging on slow sites (30-second timeout).
+- **Timeout Protection** — No hanging on slow sites (60-second timeout).
 - **Scroll Percentage** — Know exactly where you are in the article.
 - **Smart Search** — Type a query, and PaperWeb automatically takes you to Google.
 
@@ -49,9 +48,8 @@
 
 ### v0.5 (2026-03-28)
 - **Added** streaming renderer — text appears line-by-line as it downloads
-- **Added** full Cyrillic support (UTF-8 → CP1251 conversion)
 - **Added** real-time progress with percentage
-- **Added** timeout protection (30s) — no more hanging on slow sites
+- **Added** timeout protection (60s) — no more hanging on slow sites
 - **Added** scroll percentage indicator
 - **Improved** memory usage — no framebuffer, only 100KB RAM for display
 - **Improved** HTML structure support (h1, h2, h3, li tags)
