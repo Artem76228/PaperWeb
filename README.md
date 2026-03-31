@@ -8,7 +8,7 @@
 
 ---
 
-## ✨ Key Features
+## Key Features
 
 ### v0.6 Highlights
 - **Streaming Renderer** — Pages are processed byte-by-byte and displayed line-by-line. No more waiting for the whole page to load!
@@ -30,7 +30,7 @@
 
 ---
 
-## ⌨️ Controls & Shortcuts
+## Controls
 
 | Key | Action |
 | :--- | :--- |
@@ -42,7 +42,7 @@
 
 ---
 
-## 🛠️ Installation
+## Installation
 
 1. Go to the [Releases](https://github.com/Artem76228/PaperWeb/releases) section.
 2. Download the `PaperWeb_v0.6.bin` file.
@@ -50,7 +50,7 @@
 
 ---
 
-## 📝 Changelog
+## Changelog
 
 ### v0.6 (2026-03-31)
 - **Added** auto-complete loading — browser exits immediately when data stops
