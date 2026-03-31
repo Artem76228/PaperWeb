@@ -3,7 +3,7 @@
 **PaperWeb** is a fast, lightweight, and open-source text-based web browser designed specifically for the **M5Stack Cardputer**. Experience the web in its purest form—no ads, no distractions, just information.
 
 ---
-
+![](![](1774708517099.png)
 
 ---
 
