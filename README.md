@@ -1,19 +1,18 @@
-# 🌐 PaperWeb v0.5
+# 🌐 PaperWeb v0.6
 
 **PaperWeb** is a fast, lightweight, and open-source text-based web browser designed specifically for the **M5Stack Cardputer**. Experience the web in its purest form—no ads, no distractions, just information.
 
 ---
 
-![](1774708517099.png)
-
-![](20260328_175607.jpg)
 
 ---
 
 ## ✨ Key Features
 
-### v0.5 Highlights
+### v0.6 Highlights
 - **Streaming Renderer** — Pages are processed byte-by-byte and displayed line-by-line. No more waiting for the whole page to load!
+- **Auto-Complete Loading** — No more waiting 60 seconds after page loads. Browser exits immediately when data stops.
+- **Redirect Support** — Automatically follows 301/302 redirects (works with google.com, etc.)
 - **No Framebuffer** — Uses only ~100KB of RAM for display buffer. The browser never crashes on large pages.
 - **Real-Time Loading** — Text appears instantly as it's downloaded, line by line.
 - **Progress Bar** — Visual download feedback with percentage and KB counter.
@@ -45,12 +44,19 @@
 ## 🛠️ Installation
 
 1. Go to the [Releases](https://github.com/Artem76228/PaperWeb/releases) section.
-2. Download the `PaperWeb_v0.5.bin` file.
+2. Download the `PaperWeb_v0.6.bin` file.
 3. Flash it to your M5Stack Cardputer using **M5Burner** or **ESP32 Download Tool**.
 
 ---
 
 ## 📝 Changelog
+
+### v0.6 (2026-03-31)
+- **Added** auto-complete loading — browser exits immediately when data stops
+- **Added** redirect support (301/302) — works with google.com and other sites
+- **Improved** download stability
+- **Changed** User-Agent to `PaperWeb/0.6`
+- **Changed** splash screen to "FASTER LOADING"
 
 ### v0.5 (2026-03-28)
 - **Added** streaming renderer — text appears line-by-line as it downloads
@@ -64,14 +70,6 @@
 - **Fixed** aggressive filtering that broke non-Latin text
 - **Fixed** scroll boundary protection
 - **Fixed** text overlapping issues
-
-### v0.4 (2026-03-26)
-- Added real-time download progress with visual bar and percentage
-- Added timeout protection (15s)
-- Added numeric HTML entity decoding
-- Added scroll position indicator
-- Improved memory management
-- Fixed non-Latin text support
 
 ---
 
