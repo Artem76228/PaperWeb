@@ -1,0 +1,752 @@
+#include <M5Cardputer.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
+#include <Preferences.h>
+#include <zlib.h>        // Встроенная потоковая распаковка ESP32
+#include <BeShell.h>
+
+// efont для поддержки языков (UTF-8)
+#include <efont.h>
+#include <efontEnableAll.h>
+
+// Функция для передачи собранного кода в движок BeShell
+void executeBeShellJS(String scriptCode) {
+    Serial.println("\n--- RUNNING JAVASCRIPT ---");
+    // Serial.println(scriptCode); 
+    // JSEngine::evalScript(scriptCode.c_str());
+    Serial.println("--- JS EXECUTION FINISHED ---");
+}
+
+enum ParseState { STATE_TEXT, STATE_TAG, STATE_SCRIPT, STATE_STYLE, STATE_ENTITY };
+
+class PaperEngine {
+public:
+    int bytesDownloaded = 0;
+    int totalBytes = 0;
+    bool isDownloading = false;
+    
+    String currentLine;
+    int lineCount = 0;
+    
+    // --- Хранилище ссылок текущей страницы ---
+    String linkURLs[100]; 
+    int linkCount = 0;
+    
+    void (*onLineReady)(String line, int lineNum) = nullptr;
+    
+    // Переменные конечного автомата
+    ParseState currentState = STATE_TEXT;
+    String tagBuffer = "";
+    bool lastWasSpace = false;
+    
+    String scriptBuffer = "";
+    String endTagBuffer = "";
+    String entityBuffer = "";
+
+    void reset() {
+        currentLine = "";
+        lineCount = 0;
+        linkCount = 0; // Сбрасываем ссылки
+        currentState = STATE_TEXT;
+        tagBuffer = "";
+        lastWasSpace = false;
+        scriptBuffer = "";
+        endTagBuffer = "";
+        entityBuffer = "";
+    }
+    
+    void flushLine() {
+        if (currentLine.length() == 0) return;
+        if (lineCount >= 99) return; 
+        
+        if (onLineReady) {
+            onLineReady(currentLine, lineCount);
+        }
+        lineCount++;
+        currentLine = "";
+        lastWasSpace = true; 
+    }
+    
+    void addChar(char c) {
+        if (lineCount >= 99) return; 
+        
+        currentLine += c;
+        // Защита от переполнения строки (с учетом невидимых маркеров ссылок)
+        if (currentLine.length() > 40) {
+            int lastSpace = currentLine.lastIndexOf(' ');
+            if (lastSpace > 0) {
+                String linePart = currentLine.substring(0, lastSpace);
+                String rest = currentLine.substring(lastSpace + 1);
+                if (onLineReady) onLineReady(linePart, lineCount);
+                lineCount++;
+                currentLine = rest;
+            } else {
+                flushLine();
+            }
+        }
+    }
+
+    void decodeEntity(String ent) {
+    if (ent.startsWith("#")) {
+        int code;
+        if (ent.startsWith("#x")) { 
+            code = strtol(ent.substring(2).c_str(), NULL, 16);
+        } else { 
+            code = ent.substring(1).toInt();
+        }
+
+        // Кодирование кириллицы в UTF-8 для efont
+        if (code >= 1024 && code <= 1105) { 
+            if (code >= 1040 && code <= 1087) { // А-П и Р-я
+                addChar((char)0xD0); 
+                addChar((char)(0x90 + (code - 1040)));
+            } else if (code >= 1088 && code <= 1103) {
+                addChar((char)0xD1); 
+                addChar((char)(0x80 + (code - 1088)));
+            } else if (code == 1025) { // Ё
+                addChar((char)0xD0); addChar((char)0x81);
+            } else if (code == 1105) { // ё
+                addChar((char)0xD1); addChar((char)0x91);
+            }
+        } else if (code > 31 && code < 127) {
+            addChar((char)code);
+        }
+    } else {
+        if (ent == "nbsp") addChar(' ');
+        else if (ent == "lt") addChar('<');
+        else if (ent == "gt") addChar('>');
+        else if (ent == "amp") addChar('&');
+        else if (ent == "quot") addChar('"');
+    }
+}
+
+    void processHTMLChar(char c) {
+        switch (currentState) {
+            case STATE_TEXT:
+                if (c == '<') {
+                    currentState = STATE_TAG;
+                    tagBuffer = "";
+                } else if (c == '&') {
+                    currentState = STATE_ENTITY;
+                    entityBuffer = "";
+                } else {
+                    if (c == ' ' || c == '\n' || c == '\r' || c == '\t') {
+                        if (!lastWasSpace && currentLine.length() > 0) {
+                            addChar(' ');
+                            lastWasSpace = true;
+                        }
+                    } else {
+                        addChar(c);
+                        lastWasSpace = false;
+                    }
+                }
+                break;
+
+            case STATE_TAG:
+                if (c == '>') {
+                    String baseTag = tagBuffer;
+                    int spaceIdx = baseTag.indexOf(' ');
+                    if (spaceIdx != -1) baseTag = baseTag.substring(0, spaceIdx);
+                    baseTag.toLowerCase();
+
+                    if (baseTag == "script") {
+                        currentState = STATE_SCRIPT;
+                        scriptBuffer = "";
+                        endTagBuffer = "";
+                    } else if (baseTag == "style" || baseTag == "svg" || baseTag == "noscript" || baseTag == "head") {
+                        currentState = STATE_STYLE;
+                        endTagBuffer = "";
+                    } else {
+                        // --- ИЗВЛЕЧЕНИЕ ССЫЛОК ---
+                        if (baseTag == "a") {
+                            int hIdx = tagBuffer.indexOf("href=");
+                            if (hIdx != -1) {
+                                int qStart = tagBuffer.indexOf('"', hIdx);
+                                if (qStart == -1) qStart = tagBuffer.indexOf('\'', hIdx);
+                                if (qStart != -1) {
+                                    int qEnd = tagBuffer.indexOf(tagBuffer[qStart], qStart + 1);
+                                    if (qEnd != -1 && linkCount < 100) {
+                                        linkURLs[linkCount] = tagBuffer.substring(qStart + 1, qEnd);
+                                        addChar('\x01'); // Сигнал старта ссылки
+                                        addChar((char)(linkCount + 32)); // ID ссылки (сдвиг для printable)
+                                        linkCount++;
+                                    }
+                                }
+                            }
+                        } else if (baseTag == "/a") {
+                            addChar('\x02'); // Сигнал окончания ссылки
+                        } else if (baseTag == "br" || baseTag == "p" || baseTag == "div" || 
+                                   baseTag == "h1" || baseTag == "h2" || baseTag == "li" || baseTag == "tr") {
+                            flushLine();
+                        }
+                        currentState = STATE_TEXT;
+                    }
+                } else {
+                    if (tagBuffer.length() < 180) tagBuffer += c; // Буфер увеличен для длинных href
+                }
+                break;
+
+            case STATE_SCRIPT:
+                if (scriptBuffer.length() < 25000) scriptBuffer += c;
+                endTagBuffer += c;
+                if (endTagBuffer.length() > 9) endTagBuffer.remove(0, 1);
+                if (endTagBuffer.equalsIgnoreCase("</script>")) {
+                    scriptBuffer = scriptBuffer.substring(0, scriptBuffer.length() - 9);
+                    if (scriptBuffer.length() > 0) executeBeShellJS(scriptBuffer);
+                    scriptBuffer = "";
+                    currentState = STATE_TEXT;
+                }
+                break;
+
+            case STATE_STYLE:
+                endTagBuffer += c;
+                if (endTagBuffer.length() > 10) endTagBuffer.remove(0, 1);
+                if (endTagBuffer.endsWith(">")) {
+                    String check = endTagBuffer;
+                    check.toLowerCase();
+                    if (check.endsWith("</style>") || check.endsWith("</svg>") || 
+                        check.endsWith("</noscript>") || check.endsWith("</head>")) {
+                        currentState = STATE_TEXT;
+                    }
+                }
+                break;
+
+            case STATE_ENTITY:
+                if (c == ';') {
+                    decodeEntity(entityBuffer);
+                    currentState = STATE_TEXT;
+                } else if (c == ' ' || entityBuffer.length() > 8) {
+                    currentState = STATE_TEXT;
+                    addChar('&');
+                    for(int i = 0; i < entityBuffer.length(); i++) addChar(entityBuffer[i]);
+                    addChar(c);
+                } else {
+                    entityBuffer += c;
+                }
+                break;
+        }
+    }
+
+    bool fetch(String url, int timeoutMs = 60000, void (*progressCallback)(int, int) = nullptr) {
+        WiFiClientSecure client;
+        client.setInsecure();
+        client.setTimeout(timeoutMs / 1000);
+        
+        HTTPClient http;
+        http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+        http.setTimeout(timeoutMs);
+
+        if (!http.begin(client, url)) return false;
+
+        http.addHeader("Accept-Encoding", "gzip, deflate");
+        http.addHeader("User-Agent", "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.210 Mobile Safari/537.36 PaperWeb/");
+        
+        int httpCode = http.GET();
+        if (httpCode != 200) {
+            if (httpCode == 301 || httpCode == 302 || httpCode == 307 || httpCode == 308) {
+                String newLocation = http.header("Location");
+                http.end();
+                if (newLocation != "") {
+                    if (!newLocation.startsWith("http")) {
+                        int lastSlash = url.lastIndexOf('/');
+                        if (lastSlash > 7) {
+                            String baseUrl = url.substring(0, lastSlash + 1);
+                            newLocation = baseUrl + newLocation;
+                        }
+                    }
+                    return fetch(newLocation, timeoutMs, progressCallback);
+                }
+            }
+            http.end();
+            return false;
+        }
+        
+        String contentEncoding = http.header("Content-Encoding");
+        bool isGzipped = (contentEncoding.indexOf("gzip") != -1);
+        
+        totalBytes = http.getSize();
+        if (totalBytes <= 0) totalBytes = 1;
+        
+        isDownloading = true;
+        reset();
+        
+        WiFiClient* stream = http.getStreamPtr();
+        bytesDownloaded = 0;
+        
+        uint32_t startTime = millis();
+        
+        if (isGzipped) {
+            z_stream strm;
+            strm.zalloc = Z_NULL;
+            strm.zfree = Z_NULL;
+            strm.opaque = Z_NULL;
+            strm.avail_in = 0;
+            strm.next_in = Z_NULL;
+
+            if (inflateInit2(&strm, 16 + MAX_WBITS) != Z_OK) {
+                http.end();
+                return false;
+            }
+
+            uint8_t in_buf[1024];
+            uint8_t out_buf[2048];
+            int noDataCount = 0;
+
+            while (http.connected() && millis() - startTime < timeoutMs) {
+                if (ESP.getFreeHeap() < 20000) break; 
+                
+                size_t avail = stream->available();
+                if (avail > 0) {
+                    noDataCount = 0;
+                    size_t readLen = (avail < sizeof(in_buf)) ? avail : sizeof(in_buf);
+                    int bytesRead = stream->read(in_buf, readLen);
+
+                    if (bytesRead > 0) {
+                        bytesDownloaded += bytesRead;
+                        if (progressCallback && bytesDownloaded % 2048 == 0) {
+                            progressCallback(bytesDownloaded, totalBytes);
+                        }
+
+                        strm.avail_in = bytesRead;
+                        strm.next_in = in_buf;
+
+                        while (strm.avail_in > 0) {
+                            strm.avail_out = sizeof(out_buf);
+                            strm.next_out = out_buf;
+
+                            int ret = inflate(&strm, Z_NO_FLUSH, 0);
+                            
+                            if (ret == Z_STREAM_ERROR || ret == Z_DATA_ERROR || ret == Z_MEM_ERROR) break;
+
+                            size_t have = sizeof(out_buf) - strm.avail_out;
+                            for (size_t i = 0; i < have; i++) {
+                                processHTMLChar((char)out_buf[i]);
+                                if (lineCount >= 99) goto end_parsing; 
+                            }
+                            if (ret == Z_STREAM_END) break;
+                        }
+                    }
+                } else {
+                    noDataCount++;
+                    if (noDataCount > 500) break;
+                    delay(1);
+                }
+            }
+            end_parsing:
+            inflateEnd(&strm);
+        } else {
+            int noDataCount = 0;
+            while (http.connected() && millis() - startTime < timeoutMs) {
+                if (ESP.getFreeHeap() < 15000 || lineCount >= 99) break;
+                
+                if (stream->available()) {
+                    noDataCount = 0;
+                    char c = stream->read();
+                    bytesDownloaded++;
+                    
+                    if (progressCallback && bytesDownloaded % 1024 == 0) {
+                        progressCallback(bytesDownloaded, totalBytes);
+                    }
+                    processHTMLChar(c);
+                } else {
+                    noDataCount++;
+                    if (noDataCount > 500) break;
+                    delay(1);
+                }
+            }
+        }
+        
+        flushLine();
+        http.end();
+        return lineCount > 0;
+    }
+};
+
+PaperEngine engine;
+
+const String APP_NAME = "PaperWeb";
+const String APP_VERSION = "1.0.0";
+const String AUTHOR = "Artem76228";
+
+Preferences prefs;
+String ssids[3], passs[3];
+String currentURL = "https://ru.wikipedia.org";
+String sysStatus = "READY"; 
+
+// --- Глобальные переменные навигации ---
+String urlHistory[10];
+int historyCount = 0;
+int selectedLink = 0;
+
+int scrollPos = 0; 
+float siteZoom = 1.0; 
+int loadPercent = 0;
+bool isReading = false;
+int maxScrollPos = 0;
+String loadStage = "";
+
+String displayLines[100];
+int displayLineCount = 0;
+
+LGFX_Sprite canvas(&M5Cardputer.Display);
+uint32_t targetTime = 0;
+
+// Умный резолвер URL 
+String resolveURL(String base, String rel) {
+    if (rel.startsWith("http")) return rel;
+    if (rel.startsWith("//")) return "https:" + rel;
+    if (rel.startsWith("/")) {
+        int idx = base.indexOf("/", 8); 
+        if (idx != -1) return base.substring(0, idx) + rel;
+        return base + rel;
+    }
+    int idx = base.lastIndexOf("/");
+    if (idx > 7) return base.substring(0, idx + 1) + rel;
+    return base + "/" + rel;
+}
+
+void onLineReady(String line, int lineNum) {
+    if (lineNum < 100) {
+        displayLines[lineNum] = line;
+        displayLineCount = lineNum + 1;
+        int lines = displayLineCount;
+        int lineHeight = siteZoom * 12; 
+        maxScrollPos = (lines + 5) * lineHeight / 2;
+    }
+}
+
+void waitRelease() {
+    M5Cardputer.update();
+    while (M5Cardputer.Keyboard.isPressed()) { M5Cardputer.update(); delay(5); }
+}
+
+void drawBatteryUI(int x, int y, int pct) {
+    canvas.drawRect(x, y, 18, 9, WHITE);
+    canvas.fillRect(x + 18, y + 2, 2, 5, WHITE);
+    int w = map(constrain(pct, 0, 100), 0, 100, 0, 16);
+    canvas.fillRect(x + 1, y + 1, w, 7, (pct > 20) ? 0x07E0 : 0xF800);
+}
+
+void drawRSSI(int x, int y) {
+    int rssi = WiFi.RSSI();
+    int bars = (WiFi.status() != WL_CONNECTED) ? 0 : (rssi > -55 ? 4 : (rssi > -70 ? 3 : (rssi > -85 ? 2 : 1)));
+    for (int i = 0; i < 4; i++) {
+        uint16_t color = (i < bars) ? WHITE : 0x3186; 
+        canvas.fillRect(x + (i * 4), y + (6 - (i * 2)), 3, (i * 2) + 2, color);
+    }
+}
+
+void drawUI() {
+    canvas.startWrite();
+    canvas.fillSprite(BLACK);
+    
+    // --- УМНЫЙ РЕНДЕР С ПОДСВЕТКОЙ ССЫЛОК ---
+    canvas.setTextSize(siteZoom);
+    canvas.setCursor(0, 22 - (scrollPos * 2));
+    canvas.setTextWrap(true);
+    
+    bool inLink = false;
+    int currentLinkID = -1;
+    
+    for (int i = 0; i < displayLineCount; i++) {
+        String line = displayLines[i];
+        for (int j = 0; j < line.length(); j++) {
+            char c = line[j];
+            if (c == '\x01') { // Старт ссылки
+                j++;
+                if (j < line.length()) {
+                    currentLinkID = line[j] - 32;
+                    inLink = true;
+                    // Если ссылка выбрана, делаем её черной на голубом фоне (выглядит как выделение)
+                    if (currentLinkID == selectedLink) canvas.setTextColor(BLACK, CYAN); 
+                    else canvas.setTextColor(CYAN, BLACK); 
+                }
+            } else if (c == '\x02') { // Конец ссылки
+                inLink = false;
+                currentLinkID = -1;
+                canvas.setTextColor(WHITE, BLACK);
+            } else {
+                canvas.print(c);
+            }
+        }
+        if (i < displayLineCount - 1) canvas.print('\n');
+    }
+    
+    uint16_t headerCol = (WiFi.status() != WL_CONNECTED) ? 0x8000 : (loadPercent > 0 ? 0xFBE0 : (isReading ? 0x2104 : 0x0400));
+    canvas.fillRect(0, 0, 240, 18, headerCol); 
+    
+    int bat = map(M5Cardputer.Power.getBatteryVoltage(), 3300, 4200, 0, 100);
+    bat = constrain(bat, 0, 100);
+
+    drawBatteryUI(220, 5, bat);
+    canvas.setTextColor(WHITE, headerCol); // Текст хедера
+    canvas.setTextSize(1);
+    canvas.setCursor(195, 5);
+    canvas.printf("%d%%", bat);
+    drawRSSI(175, 5);
+
+    canvas.setClipRect(0, 0, 170, 18);
+    canvas.setCursor(5, 5);
+    canvas.printf("%s v%s | %s", APP_NAME.c_str(), APP_VERSION.c_str(), sysStatus.c_str());
+    canvas.clearClipRect(); 
+
+    if (loadPercent > 0 && loadPercent < 100) {
+        canvas.fillRect(0, 18, map(loadPercent, 0, 100, 0, 240), 3, CYAN);
+    }
+
+    // Футер с новой инфой
+    canvas.fillRect(0, 118, 240, 17, 0x18E3); 
+    canvas.setTextColor(WHITE, 0x18E3);
+    canvas.setCursor(5, 122);
+    if (isReading) {
+        int percent = (maxScrollPos > 0) ? (scrollPos * 100 / maxScrollPos) : 0;
+        int lIdx = (engine.linkCount > 0) ? selectedLink + 1 : 0;
+        // Добавил счетчик ссылок справа: L:X/Y
+        canvas.printf("SCR:%d%% | Z:%.1f | L:%d/%d", percent, siteZoom, lIdx, engine.linkCount);
+    } else {
+        canvas.printf("[ENT] URL | [TAB] WiFi");
+    }
+
+    canvas.pushSprite(0, 0);
+    canvas.endWrite();
+}
+
+String inputText(String prompt) {
+    waitRelease();
+    String text = "";
+    uint32_t keyTimer = 0;
+    while (true) {
+        M5Cardputer.update();
+        canvas.startWrite();
+        canvas.fillSprite(BLACK);
+        canvas.drawRect(5, 40, 230, 45, CYAN);
+        canvas.setCursor(10, 20); canvas.setTextColor(YELLOW, BLACK); canvas.print(prompt);
+        canvas.setCursor(15, 58); canvas.setTextColor(WHITE, BLACK); canvas.print(text + "_");
+        canvas.pushSprite(0, 0);
+        canvas.endWrite();
+        auto status = M5Cardputer.Keyboard.keysState();
+        if (status.word.size() > 0 && millis() - keyTimer > 180) {
+            for (auto c : status.word) text += c;
+            keyTimer = millis();
+        }
+        if (status.del && text.length() > 0 && millis() - keyTimer > 120) {
+            text.remove(text.length() - 1);
+            keyTimer = millis();
+        }
+        if (status.enter) { waitRelease(); return text; }
+        if (M5Cardputer.Keyboard.isKeyPressed('`')) { waitRelease(); return ""; }
+        delay(1); 
+    }
+}
+
+void updateProgress(int downloaded, int total) {
+    loadPercent = (downloaded * 100) / total;
+    if (loadPercent > 100) loadPercent = 100;
+    sysStatus = loadStage + " " + String(loadPercent) + "%";
+    drawUI();
+}
+
+void loadWebPage() {
+    if (WiFi.status() != WL_CONNECTED) return;
+    
+    isReading = true;
+    scrollPos = 0;
+    selectedLink = 0; // Сбрасываем курсор ссылок
+    
+    for (int i = 0; i < 100; i++) displayLines[i] = "";
+    displayLineCount = 0;
+    
+    loadStage = "CONNECTING";
+    sysStatus = loadStage;
+    loadPercent = 0;
+    drawUI();
+    delay(100);
+    
+    loadStage = "DOWNLOADING";
+    sysStatus = loadStage;
+    drawUI();
+    
+    engine.onLineReady = onLineReady;
+    bool ok = engine.fetch(currentURL, 60000, updateProgress);
+    
+    if (ok && displayLineCount > 0) {
+        sysStatus = "DONE " + String(engine.bytesDownloaded / 1024) + "KB";
+        loadPercent = 100;
+        int lineHeight = siteZoom * 12; 
+        maxScrollPos = (displayLineCount + 5) * lineHeight / 2;
+    } else {
+        sysStatus = "FAIL";
+        displayLines[0] = "FAILED\n\n" + currentURL;
+        displayLineCount = 1;
+        maxScrollPos = 0;
+    }
+    
+    drawUI();
+}
+
+void openWiFiMenu() {
+    waitRelease();
+    int sel = 0;
+    while (true) {
+        M5Cardputer.update();
+        canvas.startWrite();
+        canvas.fillSprite(BLACK);
+        canvas.setCursor(10, 10); canvas.setTextColor(CYAN, BLACK); canvas.println("NET MANAGER");
+        for (int i = 0; i < 3; i++) {
+            canvas.setCursor(10, 35 + (i * 20));
+            if (sel == i) canvas.setTextColor(BLACK, WHITE); else canvas.setTextColor(WHITE, BLACK);
+            canvas.printf("Slot %d: %s", i + 1, ssids[i] == "" ? "Empty" : ssids[i].c_str());
+        }
+        canvas.pushSprite(0, 0);
+        canvas.endWrite();
+        if (M5Cardputer.Keyboard.isKeyPressed(';')) { sel = (sel > 0) ? sel - 1 : 2; delay(150); }
+        if (M5Cardputer.Keyboard.isKeyPressed('.')) { sel = (sel < 2) ? sel + 1 : 0; delay(150); }
+        auto status = M5Cardputer.Keyboard.keysState();
+        if (status.enter) {
+            String s = inputText("SSID:");
+            if (s != "") {
+                String p = inputText("PASS:");
+                ssids[sel] = s; passs[sel] = p;
+                prefs.putString(("s" + String(sel)).c_str(), s);
+                prefs.putString(("p" + String(sel)).c_str(), p);
+                WiFi.disconnect(); WiFi.begin(s.c_str(), p.c_str());
+            }
+            waitRelease(); break;
+        }
+        if (status.tab || M5Cardputer.Keyboard.isKeyPressed('`')) { waitRelease(); break; }
+        delay(1);
+    }
+}
+
+void setup() {
+    Serial.begin(115200); 
+    
+    M5Cardputer.begin();
+    M5Cardputer.Display.setRotation(1);
+    M5Cardputer.Power.begin();
+    canvas.setColorDepth(8);
+    canvas.createSprite(240, 135);
+
+    canvas.setFont(&fonts::efontCN_12);
+
+    canvas.fillSprite(BLACK);
+    canvas.setTextColor(WHITE, BLACK);
+    canvas.setTextSize(2);
+    canvas.drawCenterString(APP_NAME, 120, 30);
+    canvas.drawLine(40, 65, 200, 65, CYAN);
+    
+    canvas.setTextSize(1);
+    canvas.setTextColor(CYAN, BLACK);
+    canvas.drawCenterString("v" + APP_VERSION, 120, 75);
+    
+    canvas.setTextColor(0xBDD7, BLACK);
+    canvas.drawCenterString("by " + AUTHOR, 120, 95);
+    
+    canvas.setTextColor(ORANGE, BLACK);
+    canvas.drawCenterString("INFINITE DATA IN YOUR HANDS", 120, 115); 
+
+    canvas.pushSprite(0, 0);
+    delay(1500); 
+    
+    prefs.begin("wifi-config", false);
+    for (int i = 0; i < 3; i++) {
+        ssids[i] = prefs.getString(("s" + String(i)).c_str(), "");
+        passs[i] = prefs.getString(("p" + String(i)).c_str(), "");
+    }
+    if (ssids[0] != "") WiFi.begin(ssids[0].c_str(), passs[0].c_str());
+    
+    currentURL = "https://ru.wikipedia.org";
+    engine.onLineReady = onLineReady;
+}
+
+void loop() {
+    if (millis() > targetTime) {
+        targetTime = millis() + 30; 
+        M5Cardputer.update();
+        drawUI();
+        auto status = M5Cardputer.Keyboard.keysState();
+        if (isReading) {
+            // Скроллинг текста (Вверх/Вниз)
+            if (M5Cardputer.Keyboard.isKeyPressed(';')) { 
+                if (scrollPos > 0) scrollPos -= 4;
+                if (scrollPos < 0) scrollPos = 0;
+            }
+            if (M5Cardputer.Keyboard.isKeyPressed('.')) { 
+                scrollPos += 4;
+                if (scrollPos > maxScrollPos) scrollPos = maxScrollPos;
+            }
+            
+            // --- НАВИГАЦИЯ ПО ССЫЛКАМ ---
+            if (M5Cardputer.Keyboard.isKeyPressed(',')) { 
+                if (selectedLink > 0) selectedLink--;
+                delay(150); // Задержка от двойных нажатий
+            }
+            if (M5Cardputer.Keyboard.isKeyPressed('/')) { 
+                if (selectedLink < engine.linkCount - 1) selectedLink++;
+                delay(150);
+            }
+            
+            // --- ПЕРЕХОД ---
+            if (status.enter && engine.linkCount > 0) {
+                String nextUrl = engine.linkURLs[selectedLink];
+                if (nextUrl != "" && !nextUrl.startsWith("javascript:")) {
+                    // Записываем в историю
+                    if (historyCount < 10) urlHistory[historyCount++] = currentURL;
+                    else {
+                        for(int i = 1; i < 10; i++) urlHistory[i-1] = urlHistory[i];
+                        urlHistory[9] = currentURL;
+                    }
+                    currentURL = resolveURL(currentURL, nextUrl);
+                    waitRelease();
+                    loadWebPage();
+                }
+            }
+            
+            // --- НАЗАД ---
+            if (status.del) { // Del на Cardputer
+                if (historyCount > 0) {
+                    historyCount--;
+                    currentURL = urlHistory[historyCount];
+                    waitRelease();
+                    loadWebPage();
+                }
+            }
+            
+            // Зум
+            if (M5Cardputer.Keyboard.isKeyPressed('=')) { 
+                siteZoom += 0.1; 
+                if (siteZoom > 3.0) siteZoom = 3.0;
+                maxScrollPos = displayLineCount * 12 * siteZoom;
+                delay(100); 
+            }
+            if (M5Cardputer.Keyboard.isKeyPressed('-')) { 
+                siteZoom -= 0.1; 
+                if (siteZoom < 0.5) siteZoom = 0.5;
+                maxScrollPos = displayLineCount * 12 * siteZoom;
+                delay(100); 
+            }
+            
+            if (M5Cardputer.Keyboard.isKeyPressed('`')) { 
+                isReading = false; 
+                waitRelease(); 
+            }
+        } else {
+            if (status.tab) openWiFiMenu();
+            if (status.enter) {
+                if (WiFi.status() != WL_CONNECTED) openWiFiMenu();
+                else {
+                    String url = inputText("URL:");
+                    if (url != "") {
+                        if (url.indexOf('.') == -1) url = "https://www.google.com/search?q=" + url;
+                        else if (!url.startsWith("http")) url = "https://" + url;
+                        
+                        historyCount = 0; // Сбрасываем историю при новом ручном вводе
+                        currentURL = url;
+                        loadWebPage();
+                    }
+                }
+            }
+        }
+    }
+}
