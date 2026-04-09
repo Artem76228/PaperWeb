@@ -1,4 +1,4 @@
-# 📟 PaperWeb v1.1.0
+# PaperWeb v1.1.0
 ---
 ![](paper_173392.bmp)  ![](paper_112717.bmp) 
 ---
