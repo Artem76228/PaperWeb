@@ -5,8 +5,6 @@
 A text-based web browser for the **M5Stack Cardputer**.  
 Because browsing the web on a microcontroller is a flex.
 
-![Main menu](screenshots/main.png)
-
 ## Why?
 
 The Cardputer is an ESP32 with a screen and a keyboard. It needed a browser. So I made one.
