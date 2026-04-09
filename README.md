@@ -46,12 +46,6 @@ PaperWeb streams and parses HTML on the fly, pulls out text and links, and rende
 4. Open WiFi Manager (`TAB`), connect to network
 5. Browse the web like it's 1995
 
-## Screenshots
-
-| Google Search (cyrillic) | NPR Text Version |
-|--------------------------|------------------|
-| ![Google](screenshots/google.png) | ![NPR](screenshots/npr.png) |
-
 ## What's New in v1.1.0
 
 - **Bookmarks** — finally, don't have to retype URLs
