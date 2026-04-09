@@ -1,6 +1,6 @@
 # 📟 PaperWeb v1.1.0
 ---
-![](1775153371604.png)
+![](paper_173392.bmp)  ![](paper_112717.bmp) 
 ---
 A text-based web browser for the **M5Stack Cardputer**.  
 Because browsing the web on a microcontroller is a flex.
