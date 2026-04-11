@@ -72,7 +72,6 @@ Open the `.ino` file in Arduino IDE. Required libraries:
 
 Board: **ESP32-S3 Dev Module**  
 Flash size: **8MB**  
-PSRAM: **OPI PSRAM**
 
 ## License
 
