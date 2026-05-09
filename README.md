@@ -8,9 +8,9 @@ A web browser for your M5Cardputer. Because why not.
 
 Reads HTML on the fly, shows text and links. No JS, no CSS, no nonsense. Just pages.
 
-**Now with offline mode** — save pages to SD, browse files, read saved stuff anywhere.
+May work in offline mode - save pages to SD, browse files, read saved stuff anywhere.
 
-## Controls (short version)
+## Controls 
 
 | Key | What it does |
 |-----|---------------|
