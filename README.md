@@ -43,7 +43,7 @@ Arduino IDE, board ESP32-S3 Dev Module, 8MB flash. Libraries: M5Cardputer, M5Uni
 
 ## License
 
-MIT — do whatever.
+MIT - do whatever.
 
-— [Artem76228](https://github.com/Artem76228)  
+by [Artem76228](https://github.com/Artem76228)  
 Star if this actually worked for you.
