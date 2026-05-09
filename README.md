@@ -1,4 +1,4 @@
-# PaperWeb v1.2.0
+# PaperWeb v1.3.0
 
 ![](paper_156961.bmp)  ![](paper_145852.bmp)
 
@@ -31,15 +31,15 @@ Reads HTML on the fly, shows text and links. No JS, no CSS, no nonsense. Just pa
 3. Put an SD card in (for saving pages)
 4. Connect to WiFi (`TAB`) and go.
 
-## Known problems
+## What's new in v1.3.0
 
-- Big sites load slow — it's an ESP32, not a gaming PC.
-- Bookmark menu lags sometimes. I'll fix it eventually.
-- File browser shows first 50 files only.
+- Heavy pages like Wikipedia load and scroll a bit faster. Cleaned up some memory junk and now only draws what's actually on screen.
+- Search is still Google — other engines block ESP32 requests.
+- Everything else is the same. It's still just a text browser.
 
 ## Build
 
-Arduino IDE, board ESP32-S3 Dev Module, 8MB flash. Libraries: M5Cardputer, M5Unified, efont, SD, zlib.
+Arduino IDE, board ESP32-S3 Dev Module, 8MB flash. Libraries: M5Cardputer, M5Unified, efont, SD.
 
 ## License
 
