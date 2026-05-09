@@ -1,6 +1,6 @@
 # PaperWeb v1.3.0
 
-![](paper_156961.bmp)  ![](paper_145852.bmp)
+![](paper_3543944.bmp)  ![](paper_3526119.bmp)
 
 A web browser for your M5Cardputer. Because why not.
 
