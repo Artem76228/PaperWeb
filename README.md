@@ -1,23 +1,19 @@
 # PaperWeb v1.3.0
-
-![](paper_3543944.bmp)  ![](paper_3526119.bmp)
-
+![](paper_3543944.bmp)  ![](paper_3526119.bmp)  
 A web browser for your M5Cardputer. Because why not.
 
 ## What it does
-
-Reads HTML on the fly, shows text and links. No JS, no CSS, no nonsense. Just pages.
-
+Reads HTML on the fly, shows text and links. No JS, no CSS, no nonsense. Just pages.  
 May work in offline mode - save pages to SD, browse files, read saved stuff anywhere.
 
 ## Controls 
-
 | Key | What it does |
 |-----|---------------|
 | `ENTER` | Go to URL / Search |
 | `TAB` | WiFi settings |
 | `,` / `/` | Choose link |
 | `;` / `.` | Scroll |
+| `=` / `-` | Zoom in / out |
 | `` ` `` | Back / Exit |
 | `D` | Save page to SD (.txt) |
 | `OPT` | File manager |
@@ -25,24 +21,23 @@ May work in offline mode - save pages to SD, browse files, read saved stuff anyw
 | `B` / `L` | Bookmarks |
 
 ## Install
-
 1. Get the `.bin` file from [Releases](../../releases)
 2. Flash with M5Burner
 3. Put an SD card in (for saving pages)
 4. Connect to WiFi (`TAB`) and go.
 
 ## What's new in v1.3.0
-
 - Heavy pages like Wikipedia load and scroll a bit faster. Cleaned up some memory junk and now only draws what's actually on screen.
 - Search is still Google — other engines block ESP32 requests.
 - Everything else is the same. It's still just a text browser.
 
-## Build
+## This is the final release
+PaperWeb is complete at v1.3.0. The browser continues as a built-in app in **PaperOS** — a full OS for M5Cardputer. Stay tuned.
 
+## Build
 Arduino IDE, board ESP32-S3 Dev Module, 8MB flash. Libraries: M5Cardputer, M5Unified, efont, SD.
 
 ## License
-
 MIT - do whatever.
 
 by [Artem76228](https://github.com/Artem76228)  
